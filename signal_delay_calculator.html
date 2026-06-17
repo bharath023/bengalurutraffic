@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bengaluru Signal Delay Cost Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --g0:#0A0F0D; --g1:#1A2620; --g2:#2C3E30;
+    --sig-green:#1DB954; --sig-amber:#F5A623; --sig-red:#E03C2D;
+    --ink:#1A1A18; --muted:#666860; --rule:rgba(0,0,0,0.09);
+    --bg:#F8F7F3; --card:#FFFFFF;
+    --mono:'JetBrains Mono','Fira Mono','Consolas',monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);padding:0}
+
+  /* HEADER */
+  .hdr{background:var(--g0);color:#fff;padding:28px 36px 24px}
+  .hdr-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
+  .hdr h1{font-size:15px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:6px}
+  .hdr-thesis{font-size:28px;font-weight:300;line-height:1.3;color:#fff;max-width:680px}
+  .hdr-thesis strong{color:var(--sig-amber);font-weight:600}
+  .hdr-badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .badge{font-size:10px;padding:3px 9px;border-radius:3px;font-weight:500;letter-spacing:.04em}
+  .badge-g{background:rgba(29,185,84,0.15);color:var(--sig-green);border:0.5px solid rgba(29,185,84,0.3)}
+  .badge-a{background:rgba(245,166,35,0.15);color:var(--sig-amber);border:0.5px solid rgba(245,166,35,0.3)}
+  .badge-r{background:rgba(224,60,45,0.15);color:var(--sig-red);border:0.5px solid rgba(224,60,45,0.3)}
+  .badge-w{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:0.5px solid rgba(255,255,255,0.15)}
+
+  /* SIGNAL PHYSICS BOX */
+  .physics{background:var(--g1);border-top:1px solid rgba(255,255,255,0.06);padding:16px 36px;display:flex;gap:48px;font-size:12px;color:rgba(255,255,255,0.55)}
+  .phy-item strong{color:rgba(255,255,255,0.85);font-weight:500;display:block;margin-bottom:2px}
+
+  /* MAIN BODY */
+  .body{padding:28px 36px}
+  .section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+  .section-title::after{content:'';flex:1;height:0.5px;background:var(--rule)}
+
+  /* CONTROLS */
+  .controls{background:var(--card);border:0.5px solid var(--rule);border-radius:10px;padding:18px 22px;margin-bottom:24px}
+  .ctrl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .ctrl-item label{font-size:11px;color:var(--muted);display:block;margin-bottom:6px;font-weight:500}
+  .ctrl-item select,.ctrl-item input[type=range]{width:100%}
+  select{padding:7px 10px;border:0.5px solid rgba(0,0,0,0.15);border-radius:6px;font-size:13px;background:#fff;color:var(--ink);cursor:pointer;outline:none}
+  select:focus{border-color:var(--sig-green)}
+  .range-wrap{display:flex;align-items:center;gap:8px}
+  input[type=range]{flex:1;accent-color:var(--sig-green);cursor:pointer}
+  .range-val{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);min-width:36px;text-align:right}
+  .ctrl-output{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:0.5px solid var(--rule)}
+  .co-item{text-align:center}
+  .co-val{font-family:var(--mono);font-size:20px;font-weight:600;margin-top:2px}
+  .co-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .co-item.green .co-val{color:var(--sig-green)}
+  .co-item.amber .co-val{color:var(--sig-amber)}
+  .co-item.red .co-val{color:var(--sig-red)}
+  .co-item.purple .co-val{color:#6B5CE7}
+
+  /* MAIN TABLE */
+  .table-wrap{background:var(--card);border:0.5px solid var(--rule);border-radius:10px;overflow:hidden;margin-bottom:24px}
+  .tbl-header{background:var(--g0);color:rgba(255,255,255,0.7);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;display:grid;padding:10px 0;text-align:center}
+  .tbl-row{display:grid;align-items:center;border-bottom:0.5px solid var(--rule);transition:background .1s}
+  .tbl-row:last-child{border-bottom:none}
+  .tbl-row:hover{background:#F5F4F0}
+  .tbl-cell{padding:9px 12px;font-size:12px;text-align:center}
+  .tbl-cell.left{text-align:left;font-weight:500}
+  .tbl-cell.mono{font-family:var(--mono);font-size:12px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;font-family:var(--mono)}
+  .pill-g{background:#E6F9EE;color:#0A6B2E}
+  .pill-a{background:#FEF3E2;color:#7A4F00}
+  .pill-r{background:#FDECEB;color:#8B1A13}
+  .pill-dr{background:#3B0A08;color:#FF8F87}
+
+  /* SECTION GRIDS */
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+  .three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+  .card{background:var(--card);border:0.5px solid var(--rule);border-radius:10px;padding:18px 20px}
+  .card-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:14px}
+
+  /* SIGNAL DENSITY BARS */
+  .density-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px}
+  .density-label{min-width:110px;color:var(--muted)}
+  .density-bar-wrap{flex:1;background:#F0EFE9;border-radius:2px;height:14px;overflow:hidden;position:relative}
+  .density-bar{height:100%;border-radius:2px;display:flex;align-items:center;padding-left:6px}
+  .density-val{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:11px;font-weight:600}
+
+  /* QUEUE TABLE */
+  .q-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:8px}
+  .q-cell{background:#F0EFE9;border-radius:6px;padding:8px 6px;text-align:center}
+  .q-pos{font-size:10px;color:var(--muted);margin-bottom:3px}
+  .q-wait{font-family:var(--mono);font-size:13px;font-weight:600}
+  .q-cycle{font-size:9px;color:var(--muted);margin-top:2px}
+  .q-cell.overflow{background:#FDECEB}
+  .q-cell.overflow .q-wait{color:var(--sig-red)}
+
+  /* FORMULA BOX */
+  .formula{background:var(--g0);color:rgba(255,255,255,0.85);border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:12px;line-height:2;margin-bottom:16px}
+  .formula .comment{color:rgba(255,255,255,0.35)}
+  .formula .highlight{color:var(--sig-amber)}
+
+  /* CITY AGGREGATE */
+  .agg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .agg-card{border-radius:8px;padding:14px 16px;text-align:center}
+  .agg-card.dark{background:var(--g1);color:#fff}
+  .agg-card.amber{background:#FEF3E2}
+  .agg-card.red{background:#FDECEB}
+  .agg-num{font-family:var(--mono);font-size:22px;font-weight:600;margin:4px 0}
+  .agg-lbl{font-size:10px;opacity:.7;text-transform:uppercase;letter-spacing:.05em}
+
+  /* CHART */
+  .chart-wrap{position:relative;height:200px}
+
+  footer{border-top:0.5px solid var(--rule);padding:14px 36px;font-size:10px;color:var(--muted);line-height:1.7}
+
+/* ── B&W THEME ── */
+body.bw{filter:grayscale(1) contrast(1.08);background:#D8D8D8!important}
+body.bw .hdr,body.bw .physics{filter:none}
+#bwBtn{position:fixed;bottom:20px;right:20px;z-index:999;padding:10px 18px;background:#111;color:#fff;border:none;border-radius:24px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.06em;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:all .2s}
+#bwBtn:hover{transform:scale(1.05)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div>
+      <h1>Signal Delay Cost Calculator · Bengaluru</h1>
+      <div class="hdr-thesis">
+        A <strong>10-second delay</strong> per signal across a 10 km commute<br>
+        costs <strong>41.7 hours/year</strong> — more than 5 working days — per commuter.
+      </div>
+    </div>
+  </div>
+  <div class="hdr-badges">
+    <span class="badge badge-g">IRC:93 · Max cycle 180s</span>
+    <span class="badge badge-a">BTP Data · Silk Board 250s peak</span>
+    <span class="badge badge-r">Devagowda PB · 285s peak</span>
+    <span class="badge badge-w">3 signals/km inner-city baseline</span>
+    <span class="badge badge-w">₹12L IT salary · ₹7L median · ₹103/L petrol</span>
+  </div>
+</div>
+
+<!-- PHYSICS -->
+<div class="physics">
+  <div class="phy-item"><strong>Startup lost time</strong>2–3 s (1st vehicle post-green)</div>
+  <div class="phy-item"><strong>Saturation headway</strong>2.0–2.2 s per queued vehicle</div>
+  <div class="phy-item"><strong>Delay definition</strong>Extra seconds vs ideal free-flow green</div>
+  <div class="phy-item"><strong>Bengaluru density</strong>2–6 signals/km by zone</div>
+  <div class="phy-item"><strong>Model basis</strong>HCM 6th Ed. · IRC:SP:41</div>
+</div>
+
+<!-- BODY -->
+<div class="body">
+
+  <!-- FORMULA -->
+  <div class="section-title">Signal Delay Compounding Formula</div>
+  <div class="formula">
+    <span class="comment">// Core compounding equation</span><br>
+    delay_per_trip = delay_per_signal × signals_per_km × commute_km &nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// seconds</span><br>
+    annual_loss    = delay_per_trip × 2 (round trip) × <span class="highlight">250</span> (working days) / 60 &nbsp;<span class="comment">// hours</span><br>
+    <br>
+    <span class="comment">// Economic cost</span><br>
+    time_value  = annual_loss_hrs × (annual_salary / (250 × 8))&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// ₹ per year</span><br>
+    fuel_cost   = annual_loss_hrs × idle_fuel_rate × petrol_price&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="comment">// ₹ per year</span><br>
+    total_cost  = time_value + fuel_cost
+  </div>
+
+  <!-- INTERACTIVE CONTROLS -->
+  <div class="section-title" style="margin-top:4px">Interactive Calculator</div>
+  <div class="controls">
+    <div class="ctrl-grid">
+      <div class="ctrl-item">
+        <label>Delay per signal</label>
+        <div class="range-wrap">
+          <input type="range" id="delaySlider" min="2" max="60" value="10" oninput="updateCalc()">
+          <span class="range-val" id="delayVal">10s</span>
+        </div>
+      </div>
+      <div class="ctrl-item">
+        <label>Signals per km</label>
+        <select id="sigDensity" onchange="updateCalc()">
+          <option value="2">2 / km — ORR / Arterial</option>
+          <option value="3" selected>3 / km — Inner city (baseline)</option>
+          <option value="4">4 / km — Koramangala / Indiranagar</option>
+          <option value="5">5 / km — CBD zone</option>
+          <option value="6">6 / km — MG Road / Brigade</option>
+        </select>
+      </div>
+      <div class="ctrl-item">
+        <label>One-way commute</label>
+        <select id="commuteDist" onchange="updateCalc()">
+          <option value="5">5 km — Short (Koramangala→MG Rd)</option>
+          <option value="10" selected>10 km — Medium (Whitefield→ITPL)</option>
+          <option value="15">15 km — Long (JP Nagar→Hebbal)</option>
+          <option value="20">20 km — Very long (Whitefield→Rajajinagar)</option>
+        </select>
+      </div>
+      <div class="ctrl-item">
+        <label>Annual salary</label>
+        <select id="salaryType" onchange="updateCalc()">
+          <option value="700000">₹7L — Bengaluru median</option>
+          <option value="1200000" selected>₹12L — IT sector</option>
+          <option value="2000000">₹20L — Senior engineer</option>
+          <option value="3500000">₹35L — Principal/Lead</option>
+        </select>
+      </div>
+    </div>
+    <div class="ctrl-output">
+      <div class="co-item green"><div class="co-lbl">Delay per km</div><div class="co-val" id="outDelayKm">30s</div></div>
+      <div class="co-item amber"><div class="co-lbl">Lost per trip</div><div class="co-val" id="outTripMin">5.0 min</div></div>
+      <div class="co-item red"><div class="co-lbl">Annual hours lost</div><div class="co-val" id="outAnnualHr">41.7 hr</div></div>
+      <div class="co-item purple"><div class="co-lbl">Annual cost (time+fuel)</div><div class="co-val" id="outCost">₹27,596</div></div>
+    </div>
+  </div>
+
+  <!-- MAIN TABLE -->
+  <div class="section-title">Full Compounding Table — 3 signals/km · All delays × All commute distances</div>
+  <div class="table-wrap">
+    <div class="tbl-header" style="grid-template-columns:120px 90px repeat(4,1fr) repeat(4,1fr)">
+      <div style="text-align:left;padding-left:14px">Delay / signal</div>
+      <div>Delay/km</div>
+      <div>5 km trip</div>
+      <div>10 km trip</div>
+      <div>15 km trip</div>
+      <div>20 km trip</div>
+      <div>Annual · 5km</div>
+      <div>Annual · 10km</div>
+      <div>Annual · 15km</div>
+      <div>Annual · 20km</div>
+    </div>
+    <div id="mainTableBody"></div>
+  </div>
+
+  <!-- TWO COLUMNS: DENSITY + QUEUE -->
+  <div class="two-col">
+
+    <!-- SIGNAL DENSITY -->
+    <div class="card">
+      <div class="card-title">Signal density impact — 10s delay · 10km commute</div>
+      <div id="densityBars"></div>
+      <div style="margin-top:14px">
+        <div style="height:160px;position:relative"><canvas id="densityChart" role="img" aria-label="Bar chart showing annual hours lost per commuter by signal density: from 28hrs at 2 signals/km to 83hrs at 6 signals/km">Annual hours lost increases linearly with signal density.</canvas></div>
+      </div>
+    </div>
+
+    <!-- QUEUE POSITION AT SILK BOARD -->
+    <div class="card">
+      <div class="card-title">Queue position analysis — Silk Board (250s cycle · 65s green phase)</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">At 2.2s saturation headway. Red = overflow into next cycle (+250s penalty)</p>
+      <div class="q-grid" id="queueGrid"></div>
+      <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6;background:#F5F4F0;border-radius:6px;padding:10px 12px">
+        <strong style="color:var(--sig-red)">Critical insight:</strong> Vehicle #30 clears in 66s — just 1s over the 65s green phase → misses by 1 second → waits another 250 seconds. Queue position #30 vs #29 = 250s difference. This is the cliff effect no flyover addresses.
+      </div>
+    </div>
+  </div>
+
+  <!-- CITY-WIDE AGGREGATE -->
+  <div class="section-title">City-wide aggregate — 60L commuters · 10s delay · 10km avg · 3 sig/km</div>
+  <div class="card" style="margin-bottom:24px">
+    <div class="agg-grid">
+      <div class="agg-card dark">
+        <div class="agg-lbl">Annual person-hours lost</div>
+        <div class="agg-num" style="color:var(--sig-amber)">25.0 Cr</div>
+        <div class="agg-lbl">60L commuters × 41.7 hrs/yr</div>
+      </div>
+      <div class="agg-card amber">
+        <div class="agg-lbl">Economic cost (₹7L median)</div>
+        <div class="agg-num" style="color:#7A4F00">₹10,308 Cr</div>
+        <div class="agg-lbl">Per year · all Bengaluru commuters</div>
+      </div>
+      <div class="agg-card red">
+        <div class="agg-lbl">IT sector alone (15L workers)</div>
+        <div class="agg-num" style="color:#8B1A13">₹4,139 Cr</div>
+        <div class="agg-lbl">Per year · ₹12L avg salary</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:0.5px solid var(--rule);display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center">
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Daily lost minutes / commuter</div><div style="font-family:var(--mono);font-size:18px;font-weight:600">10 min</div></div>
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">New vehicles/day added to city</div><div style="font-family:var(--mono);font-size:18px;font-weight:600">3,965</div></div>
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">Minutes between new vehicles</div><div style="font-family:var(--mono);font-size:18px;font-weight:600">4.4 min</div></div>
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:2px">B-SMILE cost vs annual delay cost</div><div style="font-family:var(--mono);font-size:18px;font-weight:600">1.3×</div></div>
+    </div>
+  </div>
+
+  <!-- DELAY SCENARIOS CHART -->
+  <div class="section-title">Annual hours lost per commuter — delay scenarios × commute distances (3 sig/km)</div>
+  <div class="card" style="margin-bottom:24px">
+    <div style="height:220px;position:relative"><canvas id="scenarioChart" role="img" aria-label="Grouped bar chart: annual hours lost per commuter for each delay scenario (2s to 30s) across 5/10/15/20km commute distances">Shows exponential increase in annual hours lost with higher delay and longer commutes.</canvas></div>
+  </div>
+
+  <!-- REAL JUNCTION CONTEXT -->
+  <div class="section-title">Context — BTP official signal data vs IRC:93 standard</div>
+  <div class="table-wrap">
+    <div class="tbl-header" style="grid-template-columns:200px 90px 90px 80px 120px 120px">
+      <div style="text-align:left;padding-left:14px">Junction (BTP official)</div>
+      <div>Peak cycle</div>
+      <div>IRC max</div>
+      <div>Excess</div>
+      <div>Red wait est.</div>
+      <div>Silk Board equiv.</div>
+    </div>
+    <div id="btpTable"></div>
+  </div>
+
+</div>
+
+<footer>
+  Model: HCM 6th Edition saturation headway 2.2s · IRC:SP:41 signal design · BTP signal timing PDFs (OpenCity, Nov 2025) ·
+  Karnataka RTO vehicle data 2017–2026 · BMRCL OD matrix Aug 2025 ·
+  Salaries: Bengaluru median ₹7L (IIM-B / NSSO) · IT median ₹12L (Nasscom 2024) ·
+  Petrol: ₹103/L Bengaluru Jun 2026 · Idle fuel: 0.50 L/hr 2-wheeler, 0.80 L/hr car · Fleet mix 65% 2W, 35% car ·
+  City commuters: 60L daily road trips (BTP / DULT) · Working days: 250/year
+</footer>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────
+const WORKING_DAYS = 250, TRIPS = 2, PETROL = 103;
+const IDLE_AVG = 0.65 * 0.50 + 0.35 * 0.80; // 0.605 L/hr fleet avg
+const DELAYS = [2, 5, 10, 15, 20, 30];
+const DISTS  = [5, 10, 15, 20];
+
+function calc(delay, sigKm, km, salary) {
+  const delayKm  = delay * sigKm;
+  const trip_s   = delayKm * km;
+  const daily_s  = trip_s * TRIPS;
+  const annual_s = daily_s * WORKING_DAYS;
+  const ann_min  = annual_s / 60;
+  const ann_hr   = ann_min / 60;
+  const rpmMin   = salary / (WORKING_DAYS * 8 * 60);
+  const timeCost = ann_min * rpmMin;
+  const fuelCost = ann_hr * IDLE_AVG * PETROL;
+  return { delayKm, trip_s, trip_min: trip_s/60, daily_min: daily_s/60,
+           ann_hr, timeCost, fuelCost, total: timeCost + fuelCost };
+}
+
+function pillClass(annHr) {
+  if (annHr < 10)  return 'pill-g';
+  if (annHr < 30)  return 'pill-a';
+  if (annHr < 80)  return 'pill-r';
+  return 'pill-dr';
+}
+
+// ── MAIN TABLE ───────────────────────────────────────────────
+const tbody = document.getElementById('mainTableBody');
+DELAYS.forEach(d => {
+  const row = document.createElement('div');
+  row.className = 'tbl-row';
+  row.style.gridTemplateColumns = '120px 90px repeat(4,1fr) repeat(4,1fr)';
+  let html = `<div class="tbl-cell left">${d}s / signal</div>`;
+  html += `<div class="tbl-cell mono">${d*3}s / km</div>`;
+  DISTS.forEach(km => {
+    const r = calc(d, 3, km, 1200000);
+    html += `<div class="tbl-cell mono">${r.trip_min.toFixed(1)} min</div>`;
+  });
+  DISTS.forEach(km => {
+    const r = calc(d, 3, km, 1200000);
+    const pc = pillClass(r.ann_hr);
+    html += `<div class="tbl-cell"><span class="pill ${pc}">${r.ann_hr.toFixed(1)} hr</span></div>`;
+  });
+  row.innerHTML = html;
+  tbody.appendChild(row);
+});
+
+// ── DENSITY BARS ─────────────────────────────────────────────
+const densityData = [
+  {label:'2/km · ORR', sigs:2, color:'#1DB954'},
+  {label:'3/km · Inner', sigs:3, color:'#8BC34A'},
+  {label:'4/km · Koramangala', sigs:4, color:'#F5A623'},
+  {label:'5/km · CBD entry', sigs:5, color:'#E07B2D'},
+  {label:'6/km · MG Rd/Brigade', sigs:6, color:'#E03C2D'},
+];
+const maxDens = calc(10, 6, 10, 1200000).ann_hr;
+const dbDiv = document.getElementById('densityBars');
+densityData.forEach(d => {
+  const r = calc(10, d.sigs, 10, 1200000);
+  const pct = (r.ann_hr / maxDens * 100).toFixed(0);
+  dbDiv.innerHTML += `
+    <div class="density-row">
+      <span class="density-label">${d.label}</span>
+      <div class="density-bar-wrap">
+        <div class="density-bar" style="width:${pct}%;background:${d.color}40">
+        </div>
+        <span class="density-val" style="color:${d.color};font-family:var(--mono)">${r.ann_hr.toFixed(1)}hr</span>
+      </div>
+    </div>`;
+});
+
+// ── QUEUE GRID (Silk Board 250s, 65s green) ─────────────────
+const qGrid = document.getElementById('queueGrid');
+const GREEN_PHASE = 65, CYCLE = 250, HEAD = 2.2;
+[5,10,15,20,25,29,30,35,40,50,60,70,75,80,90,100].slice(0,7).forEach(pos => {
+  const clearTime = pos * HEAD;
+  const overflow  = clearTime > GREEN_PHASE;
+  const totalWait = overflow ? clearTime + (CYCLE - GREEN_PHASE) : clearTime;
+  const cycles    = overflow ? 2 : 1;
+  qGrid.innerHTML += `
+    <div class="q-cell ${overflow ? 'overflow' : ''}">
+      <div class="q-pos">Pos #${pos}</div>
+      <div class="q-wait">${Math.round(totalWait)}s</div>
+      <div class="q-cycle">${cycles} cycle${cycles>1?'s':''}</div>
+    </div>`;
+});
+
+// ── SCENARIO CHART ─────────────────────────────────────────
+const gc = 'rgba(0,0,0,0.07)', tc = '#999';
+new Chart(document.getElementById('scenarioChart'), {
+  type: 'bar',
+  data: {
+    labels: DELAYS.map(d => d+'s delay'),
+    datasets: DISTS.map((km, i) => ({
+      label: km+'km commute',
+      data: DELAYS.map(d => calc(d, 3, km, 1200000).ann_hr),
+      backgroundColor: ['rgba(29,185,84,0.7)','rgba(245,166,35,0.7)','rgba(224,60,45,0.7)','rgba(107,92,231,0.7)'][i],
+      borderWidth: 0, borderRadius: 3
+    }))
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, labels: { boxWidth: 12, font: { size: 11 } } },
+      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.raw.toFixed(1)} hrs/yr` } }
+    },
+    scales: {
+      x: { grid: { color: gc }, ticks: { color: tc, font: { size: 11 } } },
+      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 11 }, callback: v => v+'hr' },
+           title: { display: true, text: 'Annual hours lost', color: tc, font: { size: 11 } } }
+    }
+  }
+});
+
+// ── DENSITY CHART ───────────────────────────────────────────
+new Chart(document.getElementById('densityChart'), {
+  type: 'bar',
+  data: {
+    labels: densityData.map(d => d.sigs+'/km'),
+    datasets: [{
+      data: densityData.map(d => calc(10, d.sigs, 10, 1200000).ann_hr),
+      backgroundColor: densityData.map(d => d.color+'BB'),
+      borderWidth: 0, borderRadius: 3
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } } },
+      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => v+'hr' } }
+    }
+  }
+});
+
+// ── BTP JUNCTION TABLE ──────────────────────────────────────
+const btpJns = [
+  {name:'Devagowda Petrol Bunk, BSK', cycle:285, mode:'VAC'},
+  {name:'Silk Board (HOSUR × ORR)', cycle:250, mode:'FIXED'},
+  {name:'Banashankari Bus Stand', cycle:235, mode:'FIXED'},
+  {name:'Sarjapur Rd Checkpost', cycle:235, mode:'FIXED'},
+  {name:'Adugodi', cycle:190, mode:'VAC'},
+  {name:'Aishwarya Jn, Koramangala', cycle:175, mode:'FIXED'},
+];
+const IRC_MAX = 180, sbCycle = 250;
+const btpDiv = document.getElementById('btpTable');
+btpJns.forEach(j => {
+  const excess = j.cycle - IRC_MAX;
+  const redWait = Math.round(j.cycle * 0.73); // ~73% of cycle is red for any given approach
+  const sbEq = (j.cycle / sbCycle * 100).toFixed(0);
+  const pClass = j.cycle > IRC_MAX ? (j.cycle > 250 ? 'pill-dr' : 'pill-r') : 'pill-g';
+  const div = document.createElement('div');
+  div.className = 'tbl-row';
+  div.style.gridTemplateColumns = '200px 90px 90px 80px 120px 120px';
+  div.innerHTML = `
+    <div class="tbl-cell left">${j.name}</div>
+    <div class="tbl-cell mono"><span class="pill ${pClass}">${j.cycle}s</span></div>
+    <div class="tbl-cell mono">180s</div>
+    <div class="tbl-cell mono" style="color:${j.cycle>IRC_MAX?'#E03C2D':'#1DB954'}">${excess > 0 ? '+'+excess+'s' : 'OK'}</div>
+    <div class="tbl-cell mono">~${redWait}s</div>
+    <div class="tbl-cell mono">${sbEq}%</div>`;
+  btpDiv.appendChild(div);
+});
+
+// ── INTERACTIVE CALCULATOR ──────────────────────────────────
+function updateCalc() {
+  const delay  = +document.getElementById('delaySlider').value;
+  const sigKm  = +document.getElementById('sigDensity').value;
+  const km     = +document.getElementById('commuteDist').value;
+  const salary = +document.getElementById('salaryType').value;
+  document.getElementById('delayVal').textContent = delay + 's';
+  const r = calc(delay, sigKm, km, salary);
+  document.getElementById('outDelayKm').textContent = r.delayKm + 's';
+  document.getElementById('outTripMin').textContent = r.trip_min.toFixed(1)+' min';
+  document.getElementById('outAnnualHr').textContent = r.ann_hr.toFixed(1)+' hr';
+  document.getElementById('outCost').textContent = '₹' + Math.round(r.total).toLocaleString('en-IN');
+}
+updateCalc();
+
+let bwOn=false;
+function toggleBW(){
+  bwOn=!bwOn;
+  document.body.classList.toggle('bw',bwOn);
+  const b=document.getElementById('bwBtn');
+  b.textContent=bwOn?'🌈 Colour':'⬛ B&W';
+  b.style.background=bwOn?'#fff':'#111';
+  b.style.color=bwOn?'#000':'#fff';
+}
+</script>
+<button id="bwBtn" onclick="toggleBW()">⬛ B&amp;W</button>
+</body>
+</html>

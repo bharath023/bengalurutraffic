@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bengaluru: Namma Metro vs Vehicle Growth</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; color: #1a1a18; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #5f5e5a; margin-bottom: 20px; }
+  .source-tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 3px; margin-left: 8px; vertical-align: middle; }
+  .tag-metro { background: #E1F5EE; color: #085041; }
+  .tag-veh { background: #FAEEDA; color: #412402; }
+  .tag-official { background: #EEEDFE; color: #26215C; }
+
+  .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 24px; }
+  .metric { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 14px 16px; }
+  .metric .val { font-size: 22px; font-weight: 500; margin-top: 4px; }
+  .metric .lbl { font-size: 11px; color: #5f5e5a; }
+  .metric .sub { font-size: 11px; margin-top: 3px; }
+  .red { color: #A32D2D; } .amber { color: #854F0B; } .green { color: #085041; } .purple { color: #3C3489; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+  .card { background: #fff; border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 16px 18px; }
+  .card-title { font-size: 12px; font-weight: 500; color: #5f5e5a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  canvas { display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font-size: 11px; color: #5f5e5a; }
+  .leg { display: flex; align-items: center; gap: 4px; }
+  .sq { width: 9px; height: 9px; border-radius: 2px; }
+
+  .insight { background: #EEEDFE; border-left: 3px solid #7F77DD; border-radius: 0 8px 8px 0; padding: 10px 14px; font-size: 12px; color: #26215C; line-height: 1.6; margin-bottom: 16px; }
+  .insight strong { color: #3C3489; font-weight: 500; }
+
+  .station-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .stn-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .stn-bar-wrap { flex: 1; background: #f1efe8; border-radius: 2px; height: 12px; overflow: hidden; }
+  .stn-bar { height: 100%; border-radius: 2px; }
+  .stn-val { font-size: 11px; color: #5f5e5a; min-width: 42px; text-align: right; }
+  .stn-name { min-width: 120px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .od-table { width: 100%; font-size: 11px; border-collapse: collapse; }
+  .od-table th { text-align: left; color: #5f5e5a; font-weight: 500; padding: 4px 6px; border-bottom: 0.5px solid rgba(0,0,0,0.1); }
+  .od-table td { padding: 5px 6px; border-bottom: 0.5px solid rgba(0,0,0,0.06); }
+  .od-table tr:last-child td { border-bottom: none; }
+
+  footer { font-size: 10px; color: #888780; margin-top: 16px; border-top: 0.5px solid rgba(0,0,0,0.1); padding-top: 8px; }
+
+/* ── B&W THEME ── */
+body.bw{filter:grayscale(1) contrast(1.08);background:#D8D8D8!important}
+body.bw .hdr,body.bw .physics{filter:none}
+#bwBtn{position:fixed;bottom:20px;right:20px;z-index:999;padding:10px 18px;background:#111;color:#fff;border:none;border-radius:24px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.06em;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:all .2s}
+#bwBtn:hover{transform:scale(1.05)}
+</style>
+</head>
+<body>
+
+<h1>Bengaluru: Namma Metro vs Vehicle Growth
+  <span class="source-tag tag-metro">OD Matrix Aug 2025</span>
+  <span class="source-tag tag-veh">KA Vehicles 2017–2026</span>
+  <span class="source-tag tag-official">Official Data</span>
+</h1>
+<p class="subtitle">Namma Metro ridership (XLSX: 83-station OD matrix, 18 days Aug 2025) · Karnataka vehicle registrations (CSV: 2017–2026, all categories)</p>
+
+<div class="metrics">
+  <div class="metric">
+    <div class="lbl">Best Metro day (Aug 14)</div>
+    <div class="val green">8.40L</div>
+    <div class="sub green">Thu, peak weekday ridership</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Avg weekday ridership</div>
+    <div class="val green">7.25L</div>
+    <div class="sub" style="color:#5f5e5a">83 stations, Aug 2025</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Karnataka vehicles 2026</div>
+    <div class="val red">3.49 Cr</div>
+    <div class="sub red">+64% since 2017</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">PM peak hour (19:00–20:00)</div>
+    <div class="val purple">64.5K</div>
+    <div class="sub purple">Trips/hr weekday avg</div>
+  </div>
+  <div class="metric">
+    <div class="lbl">Busiest station</div>
+    <div class="val" style="font-size:15px;color:#854F0B">Majestic</div>
+    <div class="sub amber">6.26L trips in 18 days</div>
+  </div>
+</div>
+
+<div class="insight">
+  <strong>The mode shift paradox:</strong> On Aug 14, Namma Metro's best day, 8.40 lakh journeys were made across 83 stations.
+  That same month, Karnataka added roughly <strong>12,000–15,000 new vehicles per day</strong> to the road fleet.
+  Every new peak day record Metro achieves is outpaced within weeks by vehicle registrations.
+  The metro is growing — but the denominator (vehicles on road) grows faster.
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Karnataka vehicle registrations 2017–2026</div>
+    <div class="legend">
+      <span class="leg"><span class="sq" style="background:#7F77DD"></span>Total fleet</span>
+      <span class="leg"><span class="sq" style="background:#D85A30"></span>Two-wheelers</span>
+      <span class="leg"><span class="sq" style="background:#1D9E75"></span>Cars</span>
+    </div>
+    <div style="position:relative;height:230px"><canvas id="vehicleChart" role="img" aria-label="Karnataka vehicle registration growth 2017-2026: total from 2.13 crore to 3.49 crore, two-wheelers dominate">Vehicle growth 2017-2026: Total 2.13Cr to 3.49Cr.</canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Namma Metro daily ridership — Aug 2025</div>
+    <div class="legend">
+      <span class="leg"><span class="sq" style="background:#7F77DD"></span>Weekday</span>
+      <span class="leg"><span class="sq" style="background:#1D9E75"></span>Saturday</span>
+      <span class="leg"><span class="sq" style="background:#888780"></span>Sunday</span>
+    </div>
+    <div style="position:relative;height:230px"><canvas id="dailyChart" role="img" aria-label="Daily Namma Metro ridership Aug 2025: weekdays 6-8.4 lakh, weekends 5-6.5 lakh">Daily ridership Aug 2025: 4.79L to 8.40L.</canvas></div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Hourly ridership pattern — weekday vs weekend</div>
+    <div class="legend">
+      <span class="leg"><span class="sq" style="background:#7F77DD"></span>Weekday avg</span>
+      <span class="leg"><span class="sq" style="background:#EF9F27"></span>Weekend avg</span>
+    </div>
+    <div style="position:relative;height:220px"><canvas id="hourlyChart" role="img" aria-label="Hourly metro trips: AM peak 9am 66.7K weekday, PM peak 19:00 64.5K weekday, weekends flatter curve">AM peak 9am, PM peak 19:00. Weekends much flatter.</canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Vehicle mix — Karnataka 2026</div>
+    <div class="legend">
+      <span class="leg"><span class="sq" style="background:#D85A30"></span>Two-wheelers 71.3%</span>
+      <span class="leg"><span class="sq" style="background:#1D9E75"></span>Cars 14.2%</span>
+      <span class="leg"><span class="sq" style="background:#7F77DD"></span>LMV Pax 3.2%</span>
+      <span class="leg"><span class="sq" style="background:#BA7517"></span>Taxies 1.5%</span>
+      <span class="leg"><span class="sq" style="background:#888780"></span>Others 9.8%</span>
+    </div>
+    <div style="position:relative;height:220px"><canvas id="mixChart" role="img" aria-label="Vehicle mix Karnataka 2026: 71.3% two-wheelers, 14.2% cars, others smaller shares">Two-wheelers dominate at 71.3% of all Karnataka vehicles.</canvas></div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Top 12 stations by total trips originated (Aug 1–18, 2025)</div>
+    <div style="margin-top:8px">
+      <div class="station-grid">
+        <!-- Filled by JS -->
+        <div id="stn-left"></div>
+        <div id="stn-right"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top 10 OD pairs — highest passenger flows (Aug 2025)</div>
+    <table class="od-table">
+      <thead>
+        <tr><th>#</th><th>Origin</th><th>Destination</th><th>Trips</th></tr>
+      </thead>
+      <tbody id="od-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  Data: (1) Karnataka vehicle registrations CSV — state-wide cumulative fleet by category 2017–2026 | 
+  (2) Namma Metro OD matrix XLSX — 83 stations × 83 stations, hourly, Aug 1–18 2025 (27,516 records, null rows excluded) |
+  Analysis: raw station-to-station passenger journey counts, not station boardings — total may differ from BMRCL published boardings.
+</footer>
+
+<script>
+const gc = 'rgba(0,0,0,0.06)';
+const tc = '#888';
+
+// Vehicle chart
+new Chart(document.getElementById('vehicleChart'), {
+  type: 'line',
+  data: {
+    labels: ['2017','2018','2019','2020','2021','2022','2023','2024','2025','2026'],
+    datasets: [
+      {
+        label: 'Total fleet (Cr)',
+        data: [2.13,2.28,2.45,2.61,2.73,2.84,2.98,3.16,3.35,3.49],
+        borderColor: '#7F77DD', backgroundColor: 'rgba(127,119,221,0.07)',
+        borderWidth: 2, pointRadius: 3, fill: true, tension: 0.35, yAxisID: 'y'
+      },
+      {
+        label: '2-wheelers (Cr)',
+        data: [1.49,1.61,1.73,1.85,1.94,2.02,2.11,2.24,2.37,2.49],
+        borderColor: '#D85A30', backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 3, borderDash: [5,3], fill: false, tension: 0.35, yAxisID: 'y'
+      },
+      {
+        label: 'Cars (Cr)',
+        data: [0.318,0.338,0.358,0.376,0.394,0.414,0.438,0.465,0.492,0.495],
+        borderColor: '#1D9E75', backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 3, borderDash: [3,3], fill: false, tension: 0.35, yAxisID: 'y2'
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+    scales: {
+      x: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } } },
+      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => v.toFixed(2)+'Cr' }, title: { display: true, text: 'Total / 2W (Crore)', color: tc, font: { size: 10 } } },
+      y2: { position: 'right', grid: { display: false }, ticks: { color: '#1D9E75', font: { size: 10 }, callback: v => v.toFixed(2)+'Cr' }, title: { display: true, text: 'Cars (Crore)', color: '#1D9E75', font: { size: 10 } } }
+    }
+  }
+});
+
+// Daily ridership
+const dailyLabels = ['Aug 1\nFri','Aug 2\nSat','Aug 3\nSun','Aug 4\nMon','Aug 5\nTue','Aug 6\nWed','Aug 7\nThu','Aug 8\nFri','Aug 9\nSat','Aug 10\nSun','Aug 11\nMon','Aug 12\nTue','Aug 13\nWed','Aug 14\nThu','Aug 15\nFri','Aug 16\nSat','Aug 17\nSun','Aug 18\nMon'];
+const dailyVals = [6.69,6.27,4.96,7.08,6.87,7.32,7.13,5.44,5.64,4.79,7.94,7.77,7.98,8.40,6.53,6.55,5.38,7.87];
+const dayTypes = ['Fri','Sat','Sun','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Mon'];
+const barColorsDaily = dailyVals.map((v,i) => {
+  const d = dayTypes[i];
+  if (d === 'Sun') return '#B4B2A9';
+  if (['Sat'].includes(d)) return '#1D9E75';
+  return '#7F77DD';
+});
+
+new Chart(document.getElementById('dailyChart'), {
+  type: 'bar',
+  data: {
+    labels: ['1F','2Sa','3Su','4M','5T','6W','7Th','8F','9Sa','10Su','11M','12T','13W','14Th','15F','16Sa','17Su','18M'],
+    datasets: [{
+      label: 'Ridership (lakh)',
+      data: dailyVals,
+      backgroundColor: barColorsDaily,
+      borderWidth: 0, borderRadius: 3
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.raw.toFixed(2)}L passengers`, title: c => `Aug ${c[0].label.replace(/[A-Za-z]/g,'').trim()}` } }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tc, font: { size: 9 } } },
+      y: { min: 3, grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => v.toFixed(0)+'L' }, title: { display: true, text: 'Lakh passengers', color: tc, font: { size: 10 } } }
+    }
+  }
+});
+
+// Hourly
+const hours = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+const wkdH = [0.12,0.30,0.70,1.41,1.67,1.48,0.93,0.79,0.77,0.80,0.77,0.95,1.25,1.58,1.61,1.13,0.71,0.43,0.16].map(v=>v*100/18);
+const wknH = [0.10,0.22,0.52,0.85,1.02,1.12,0.93,0.82,0.79,0.82,0.86,1.09,1.35,1.45,1.38,1.11,0.74,0.43,0.15].map(v=>v*100/18);
+
+new Chart(document.getElementById('hourlyChart'), {
+  type: 'line',
+  data: {
+    labels: hours.map(h => h+':00'),
+    datasets: [
+      {
+        label: 'Weekday',
+        data: [0.119,0.296,0.694,1.701,2.745,2.434,1.531,1.297,1.261,1.305,1.260,1.551,2.046,2.598,2.655,1.859,1.172,0.689,0.266],
+        borderColor: '#7F77DD', backgroundColor: 'rgba(127,119,221,0.07)',
+        borderWidth: 2, pointRadius: 3, fill: true, tension: 0.4
+      },
+      {
+        label: 'Weekend',
+        data: [0.090,0.218,0.512,0.950,1.200,1.320,1.100,0.960,0.920,0.960,1.020,1.280,1.580,1.700,1.620,1.300,0.870,0.510,0.175],
+        borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.05)',
+        borderWidth: 2, pointRadius: 3, fill: true, tension: 0.4, borderDash: [4,3]
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      annotation: {}
+    },
+    scales: {
+      x: { grid: { color: gc }, ticks: { color: tc, font: { size: 9 }, maxRotation: 0 } },
+      y: { min: 0, grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => v.toFixed(1)+'K' }, title: { display: true, text: 'Trips/hr (thousands)', color: tc, font: { size: 10 } } }
+    }
+  },
+  plugins: [{
+    afterDraw(chart) {
+      const {ctx,scales:{x,y}} = chart;
+      [9,19].forEach(hr => {
+        const idx = hours.indexOf(hr);
+        if (idx < 0) return;
+        const xp = x.getPixelForValue(idx);
+        ctx.save();
+        ctx.setLineDash([3,3]);
+        ctx.strokeStyle = 'rgba(127,119,221,0.4)';
+        ctx.beginPath(); ctx.moveTo(xp, y.top); ctx.lineTo(xp, y.bottom); ctx.stroke();
+        ctx.restore();
+      });
+    }
+  }]
+});
+
+// Vehicle mix doughnut
+new Chart(document.getElementById('mixChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Two-wheelers','Cars','LMV Passenger','Taxies','LGVs','Buses','Others'],
+    datasets: [{
+      data: [71.3,14.2,3.2,1.5,3.0,0.7,6.1],
+      backgroundColor: ['#D85A30','#1D9E75','#7F77DD','#BA7517','#378ADD','#888780','#D4537E'],
+      borderWidth: 0, hoverOffset: 4
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, cutout: '62%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}%` } }
+    }
+  }
+});
+
+// Station bars
+const stations = [
+  {code:'KGWA', name:'KSR / Majestic', trips:626056, color:'#D85A30'},
+  {code:'JTPM', name:'Jayadeva Hospital', trips:469307, color:'#7F77DD'},
+  {code:'IDN', name:'Indiranagar', trips:380598, color:'#7F77DD'},
+  {code:'MGRD', name:'M G Road', trips:372369, color:'#7F77DD'},
+  {code:'KRPM', name:'Kempegowda', trips:327496, color:'#7F77DD'},
+  {code:'SPGD', name:'Sampige Road', trips:295139, color:'#1D9E75'},
+  {code:'CHPK', name:'Chickpete', trips:284844, color:'#1D9E75'},
+  {code:'YPM', name:'Yelachenahalli', trips:251692, color:'#1D9E75'},
+  {code:'JAYN', name:'Jayanagar', trips:237281, color:'#1D9E75'},
+  {code:'CBPK', name:'Cubbon Park', trips:234919, color:'#7F77DD'},
+  {code:'BYPH', name:'Baiyappanahalli', trips:231540, color:'#BA7517'},
+  {code:'BNSK', name:'Banashankari', trips:227408, color:'#1D9E75'},
+];
+const maxTrips = 626056;
+const leftStns = stations.slice(0,6);
+const rightStns = stations.slice(6,12);
+
+function renderStations(container, list) {
+  list.forEach((s,i) => {
+    const pct = (s.trips/maxTrips*100).toFixed(0);
+    const val = (s.trips/1000).toFixed(0)+'K';
+    container.innerHTML += `
+      <div class="stn-row" style="margin-bottom:7px">
+        <span class="stn-name" style="color:#1a1a18">${s.name}</span>
+        <div class="stn-bar-wrap"><div class="stn-bar" style="width:${pct}%;background:${s.color}"></div></div>
+        <span class="stn-val">${val}</span>
+      </div>`;
+  });
+}
+renderStations(document.getElementById('stn-left'), leftStns);
+renderStations(document.getElementById('stn-right'), rightStns);
+
+// OD pairs
+const odPairs = [
+  {o:'Jayadeva Hosp.', d:'KSR/Majestic', t:44477},
+  {o:'Kadugodi', d:'Hosahalli', t:34924},
+  {o:'Hosahalli', d:'Kadugodi', t:34736},
+  {o:'Jayadeva Hosp.', d:'Indiranagar', t:28838},
+  {o:'Yelachenahalli', d:'KSR/Majestic', t:27539},
+  {o:'Banashankari', d:'KSR/Majestic', t:27130},
+  {o:'Indiranagar', d:'Jayadeva Hosp.', t:27008},
+  {o:'Chickpete', d:'KSR/Majestic', t:26947},
+  {o:'M G Road', d:'Indiranagar', t:24365},
+  {o:'KSR/Majestic', d:'Jayadeva Hosp.', t:23921},
+];
+const tbody = document.getElementById('od-body');
+odPairs.forEach((p,i) => {
+  const pct = (p.t/44477*80).toFixed(0);
+  tbody.innerHTML += `<tr>
+    <td style="color:#5f5e5a">${i+1}</td>
+    <td>${p.o}</td>
+    <td>${p.d}</td>
+    <td>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:${pct}px;height:8px;background:#7F77DD;border-radius:2px;opacity:0.7"></div>
+        <span style="color:#5f5e5a">${(p.t/1000).toFixed(1)}K</span>
+      </div>
+    </td>
+  </tr>`;
+});
+
+let bwOn=false;
+function toggleBW(){
+  bwOn=!bwOn;
+  document.body.classList.toggle('bw',bwOn);
+  const b=document.getElementById('bwBtn');
+  b.textContent=bwOn?'🌈 Colour':'⬛ B&W';
+  b.style.background=bwOn?'#fff':'#111';
+  b.style.color=bwOn?'#000':'#fff';
+}
+</script>
+<button id="bwBtn" onclick="toggleBW()">⬛ B&amp;W</button>
+</body>
+</html>

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LinkedIn Carousel — Bengaluru Traffic</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* ── NAV ─────────────────────────────────────────────── */
+body{background:#111;font-family:'Inter',sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:24px 16px;gap:16px}
+.nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;position:sticky;top:12px;z-index:100;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);padding:10px 16px;border-radius:50px;border:1px solid rgba(255,255,255,0.1)}
+.nav button{background:rgba(255,255,255,0.08);border:none;color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;padding:6px 14px;border-radius:20px;cursor:pointer;letter-spacing:.04em;transition:all .15s}
+.nav button.active{background:#22C55E;color:#000}
+.nav button:hover:not(.active){background:rgba(255,255,255,0.15);color:#fff}
+.slide-hint{color:rgba(255,255,255,0.3);font-size:11px;text-align:center}
+
+/* ── SLIDE CONTAINER ──────────────────────────────────── */
+.slide{
+  width:1080px; height:1080px;
+  border-radius:12px; overflow:hidden;
+  display:none; position:relative;
+  flex-direction:column;
+}
+.slide.active{display:flex}
+
+/* ── SHARED TOKENS ────────────────────────────────────── */
+:root{
+  --g:#22C55E; --a:#F59E0B; --r:#EF4444; --b:#6366F1;
+  --bg:#0C0F0E; --bg2:#141918; --bg3:#1C2220;
+  --text:#F1F5F2; --muted:#6B7A72; --rule:rgba(255,255,255,0.07);
+  --mono:'JetBrains Mono',monospace;
+}
+
+/* ── B&W THEME ───────────────────────────────────────── */
+body.bw{
+  background:#E0E0E0;
+  --bg:#FFFFFF; --bg2:#F2F2F2; --bg3:#E8E8E8;
+  --g:#111111; --a:#444444; --r:#000000; --b:#222222;
+  --text:#0A0A0A; --muted:#666666; --rule:rgba(0,0,0,0.1);
+}
+body.bw .nav{background:rgba(255,255,255,0.95);border-color:rgba(0,0,0,0.12)}
+body.bw .nav button{color:#444;background:rgba(0,0,0,0.06)}
+body.bw .nav button.active{background:#111;color:#fff}
+body.bw .nav button:hover:not(.active){background:rgba(0,0,0,0.12);color:#000}
+body.bw .slide-hint{color:rgba(0,0,0,0.4)}
+/* slide-level grayscale: catches all charts + colored inline elements */
+body.bw .slide{filter:grayscale(1) contrast(1.08)}
+/* restore legible text on white bg */
+body.bw .s-title{color:#000}
+body.bw .s-num{color:#333}
+body.bw .s-footer{background:#EBEBEB;border-color:rgba(0,0,0,0.1)}
+body.bw .s-footer-brand{color:rgba(0,0,0,0.45)}
+body.bw .s-footer-page{color:#111}
+/* pills → gray scale */
+body.bw .pill.pg{background:rgba(0,0,0,0.05);color:#1a1a1a}
+body.bw .pill.pa{background:rgba(0,0,0,0.09);color:#2a2a2a}
+body.bw .pill.po{background:rgba(0,0,0,0.13);color:#111}
+body.bw .pill.pr{background:rgba(0,0,0,0.17);color:#000}
+body.bw .pill.pdr{background:rgba(0,0,0,0.23);color:#000;font-weight:800}
+body.bw .tg,.bw .ta,.bw .tr,.bw .tb{background:rgba(0,0,0,0.06)!important;color:#333!important;border-color:rgba(0,0,0,0.18)!important}
+/* formula */
+body.bw .formula{background:#EFEFEF;border-color:rgba(0,0,0,0.1);color:#333}
+body.bw .formula .kw{color:#111}
+body.bw .formula .num{color:#444}
+body.bw .formula .cmt{color:#999}
+body.bw .formula .hl{color:#000;font-weight:800}
+/* insight */
+body.bw .insight{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.14);color:#222}
+body.bw .insight strong{color:#000}
+/* queue overflow */
+body.bw .q-box.ov{background:rgba(0,0,0,0.07);border-color:rgba(0,0,0,0.25)}
+/* od bars */
+body.bw .od-b{background:linear-gradient(90deg,#555,#111)}
+
+/* ── SLIDE INTERNALS ──────────────────────────────────── */
+.s-header{padding:48px 56px 0;display:flex;flex-direction:column;gap:0}
+.s-num{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--g);margin-bottom:12px}
+.s-title{font-size:52px;font-weight:800;line-height:1.05;letter-spacing:-.02em;color:var(--text)}
+.s-title em{color:var(--a);font-style:normal}
+.s-sub{font-size:17px;color:var(--muted);margin-top:10px;font-weight:400;line-height:1.5}
+.s-body{padding:32px 56px;flex:1;display:flex;flex-direction:column;gap:16px;min-height:0}
+.s-footer{padding:18px 56px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)}
+.s-footer-brand{font-weight:600;color:var(--muted);letter-spacing:.04em}
+.s-footer-page{font-family:var(--mono);color:var(--g)}
+
+.card{background:var(--bg2);border:1px solid var(--rule);border-radius:12px;padding:20px 22px}
+.card-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+
+/* stat pills */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.stat-pill{background:var(--bg2);border:1px solid var(--rule);border-radius:10px;padding:18px 20px}
+.sp-val{font-family:var(--mono);font-size:30px;font-weight:700;line-height:1;margin-bottom:6px}
+.sp-lbl{font-size:11px;color:var(--muted);line-height:1.4}
+.sp-tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;display:inline-block;margin-top:6px}
+.tg{background:rgba(34,197,94,.12);color:var(--g)}
+.ta{background:rgba(245,158,11,.12);color:var(--a)}
+.tr{background:rgba(239,68,68,.12);color:var(--r)}
+.tb{background:rgba(99,102,241,.12);color:var(--b)}
+
+/* delay table */
+.dtbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px}
+.dtbl th{font-family:'Inter',sans-serif;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 14px;text-align:center;border-bottom:1px solid var(--rule)}
+.dtbl th:first-child{text-align:left}
+.dtbl td{padding:10px 14px;text-align:center;border-bottom:1px solid var(--rule)}
+.dtbl td:first-child{text-align:left;font-family:'Inter',sans-serif;font-weight:500;font-size:13px}
+.dtbl tr:last-child td{border-bottom:none}
+.pill{display:inline-block;padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600}
+.pg{background:rgba(34,197,94,.12);color:#4ADE80}
+.pa{background:rgba(245,158,11,.12);color:#FCD34D}
+.po{background:rgba(249,115,22,.12);color:#FB923C}
+.pr{background:rgba(239,68,68,.12);color:#F87171}
+.pdr{background:rgba(220,38,38,.2);color:#FCA5A5}
+
+/* queue boxes */
+.q-row{display:flex;gap:10px}
+.q-box{flex:1;background:var(--bg3);border:1px solid var(--rule);border-radius:10px;padding:14px 8px;text-align:center}
+.q-box.ov{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25)}
+.q-pos{font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+.q-sec{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--g)}
+.q-box.ov .q-sec{color:var(--r)}
+.q-cyc{font-size:9px;color:var(--muted);margin-top:3px}
+
+/* signal table */
+.stbl{width:100%;border-collapse:collapse;font-size:13px}
+.stbl th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:8px 14px;text-align:left;border-bottom:1px solid var(--rule)}
+.stbl td{padding:10px 14px;border-bottom:1px solid var(--rule);vertical-align:middle}
+.stbl tr:last-child td{border-bottom:none}
+
+/* insight box */
+.insight{background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);border-radius:10px;padding:16px 20px;font-size:14px;line-height:1.7;color:rgba(255,255,255,.8)}
+.insight strong{color:var(--g);font-weight:600}
+
+/* formula */
+.formula{background:var(--bg3);border:1px solid var(--rule);border-radius:10px;padding:16px 20px;font-family:var(--mono);font-size:13px;line-height:2.1;color:rgba(255,255,255,.75)}
+.kw{color:var(--b)} .num{color:var(--a)} .cmt{color:var(--muted)} .hl{color:var(--g);font-weight:700}
+
+/* chart */
+.ch{position:relative}
+
+/* od bars */
+.od{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
+.od-o{min-width:120px;color:var(--muted)}
+.od-arr{color:var(--g);font-size:13px}
+.od-d{min-width:100px;font-weight:500}
+.od-bw{flex:1;background:rgba(255,255,255,.04);border-radius:2px;height:10px;overflow:hidden}
+.od-b{height:100%;border-radius:2px;background:linear-gradient(90deg,#6366F1,#22C55E)}
+.od-v{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:40px;text-align:right}
+
+/* tags */
+.tag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:4px;display:inline-block;margin:3px}
+
+/* solution cards */
+.sol{background:var(--bg2);border-radius:12px;padding:22px 20px;border:1px solid var(--rule);flex:1}
+.sol-icon{font-size:28px;margin-bottom:10px}
+.sol-title{font-size:15px;font-weight:700;margin-bottom:8px}
+.sol-body{font-size:12px;color:var(--muted);line-height:1.7}
+.sol-tag{font-size:10px;font-weight:600;padding:3px 8px;border-radius:3px;display:inline-block;margin-top:8px}
+
+/* big number */
+.big-num{font-family:var(--mono);font-size:80px;font-weight:900;line-height:1;letter-spacing:-.03em}
+.big-unit{font-family:var(--mono);font-size:32px;font-weight:700;color:var(--muted);margin-top:-4px}
+
+/* ref list */
+.ref{font-size:11px;color:var(--muted);line-height:2;padding:0 2px}
+.ref span{color:rgba(255,255,255,.5)}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <button class="active" onclick="show(0)">01 Hook</button>
+  <button onclick="show(1)">02 Vehicles</button>
+  <button onclick="show(2)">03 Metro</button>
+  <button onclick="show(3)">04 Signals</button>
+  <button onclick="show(4)">05 Delay Table</button>
+  <button onclick="show(5)">06 Silk Board</button>
+  <button onclick="show(6)">07 City Cost</button>
+  <button onclick="show(7)">08 Solutions</button>
+  <button onclick="show(8)">09 References</button>
+  <button id="bwBtn" onclick="toggleBW()" style="margin-left:8px;border-left:1px solid rgba(255,255,255,0.15);padding-left:18px;letter-spacing:.06em">⬛ B&amp;W</button>
+</div>
+<div class="slide-hint">⬆ Click slides above to navigate · Screenshot each slide for LinkedIn PDF carousel</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 01 — HOOK
+═══════════════════════════════════════════════════════ -->
+<div class="slide active" style="background:var(--bg)">
+  <div style="padding:64px 56px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--g);margin-bottom:20px">Data Analysis · Bengaluru Urban Mobility · June 2026</div>
+      <div style="font-size:68px;font-weight:900;line-height:1;letter-spacing:-.03em;color:#fff;margin-bottom:16px">
+        Bengaluru<br>doesn't have a<br>
+        <span style="color:var(--a)">traffic problem.</span>
+      </div>
+      <div style="font-size:26px;font-weight:300;color:var(--muted);line-height:1.4">
+        It has a data problem —<br>and the data is already public.
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:36px">
+        <span class="tag tg">RTO Karnataka 2017–2026</span>
+        <span class="tag tb">BMRCL OD Matrix · Aug 2025 · 83 stations</span>
+        <span class="tag tr">BTP Signal PDFs · Nov 2025 · 100+ junctions</span>
+        <span class="tag ta">IRC:93 · HCM 6th Ed · TomTom 2024</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+        <div class="stat-pill"><div class="sp-val" style="color:var(--r)">3.49Cr</div><div class="sp-lbl">Karnataka vehicles 2026</div><div class="sp-tag tr">+64.2% since 2017</div></div>
+        <div class="stat-pill"><div class="sp-val" style="color:var(--a)">3,965</div><div class="sp-lbl">New vehicles/day (2025–26)</div><div class="sp-tag ta">every 4.4 minutes</div></div>
+        <div class="stat-pill"><div class="sp-val" style="color:var(--g)">8.40L</div><div class="sp-lbl">Metro peak day ridership</div><div class="sp-tag tg">Aug 14, 2025 Thu</div></div>
+        <div class="stat-pill"><div class="sp-val" style="color:var(--b)">₹10,308Cr</div><div class="sp-lbl">Annual signal delay cost</div><div class="sp-tag tb">60L commuters</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Dr. Bharath A.L. · Urban Infrastructure Engineer</span><span class="s-footer-page">01 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 02 — VEHICLE DATA
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">Dataset 01 — RTO Karnataka · Vehicle Registrations 2017–2026</div>
+    <div class="s-title">Karnataka adds<br><em>3,965 vehicles</em><br>every single day.</div>
+  </div>
+  <div class="s-body">
+    <div class="g2" style="flex:1;min-height:0">
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="card-lbl">Fleet growth 2017–2026 (cumulative, crore)</div>
+        <div class="ch" style="flex:1"><canvas id="c2a" role="img" aria-label="Line chart: Karnataka vehicle growth 2.13 crore to 3.49 crore over 9 years">Fleet grew 64.2% in 9 years.</canvas></div>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted)">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:2px;background:var(--b);display:inline-block"></span>Total fleet</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:2px;border-top:2px dashed var(--r);display:inline-block"></span>Two-wheelers</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:2px;border-top:2px dotted var(--g);display:inline-block"></span>Cars</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card"><div class="card-lbl">Category breakdown · 2026</div>
+          <div style="font-size:13px;color:var(--muted);line-height:2.1">
+            <div style="display:flex;justify-content:space-between"><span>Two-wheelers</span><span style="font-family:var(--mono);color:var(--r);font-weight:700">2,49,06,863 <span style="font-size:11px">(71.3%)</span></span></div>
+            <div style="display:flex;justify-content:space-between"><span>Cars</span><span style="font-family:var(--mono);color:var(--text)">49,51,154 <span style="font-size:11px">(14.2%)</span></span></div>
+            <div style="display:flex;justify-content:space-between"><span>LMV Passenger</span><span style="font-family:var(--mono);color:var(--text)">11,05,911 <span style="font-size:11px">(3.2%)</span></span></div>
+            <div style="display:flex;justify-content:space-between"><span>Taxies / Cabs</span><span style="font-family:var(--mono);color:var(--text)">5,40,533 <span style="font-size:11px">(1.5%)</span></span></div>
+            <div style="display:flex;justify-content:space-between;color:var(--r)"><span><strong>Buses (all types)</strong></span><span style="font-family:var(--mono);font-weight:700">2,30,818 <span style="font-size:11px">(0.7%)</span></span></div>
+          </div>
+        </div>
+        <div class="card"><div class="card-lbl">Year-on-year growth</div>
+          <div class="ch" style="height:130px"><canvas id="c2b" role="img" aria-label="Bar chart: YoY vehicle growth rate 2018-2026, ranging from 4.3% to 7.45%">Growth peaked at 7.45% in 2019, now 4.32%.</canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="insight">
+      <strong>Buses = 0.7% of fleet.</strong> Two-wheelers are <strong>101× more numerous</strong> than buses. ₹13,262 Cr B-SMILE budget allocates ₹0 to buses. One new vehicle joins Karnataka roads <strong>every 4.4 minutes.</strong>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Source: Karnataka Transport Dept · data.opencity.in · RTO open data</span><span class="s-footer-page">02 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 03 — METRO DATA
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">Dataset 02 — BMRCL OD Matrix · Namma Metro · Aug 1–18, 2025</div>
+    <div class="s-title">Metro's best day:<br><em>8,40,311</em> journeys.<br><span style="font-size:32px;font-weight:300;color:var(--muted)">But 3,965 new vehicles were added that same day.</span></div>
+  </div>
+  <div class="s-body">
+    <div class="g2" style="flex:1;min-height:0">
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="card-lbl">Daily ridership — Aug 2025 (lakh passengers)</div>
+        <div class="ch" style="flex:1"><canvas id="c3a" role="img" aria-label="Bar chart: daily metro ridership Aug 2025, weekdays 6-8.4L, weekends 5-6.5L">Peak Aug 14: 8.40L, lowest Aug 10 Sunday: 4.79L.</canvas></div>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted)">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:var(--b);border-radius:2px;opacity:.8"></span>Weekday</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:var(--g);border-radius:2px;opacity:.7"></span>Saturday</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#444;border-radius:2px"></span>Sunday</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card" style="display:flex;flex-direction:column;flex:1">
+          <div class="card-lbl">Hourly pattern — weekday vs weekend (avg trips/hr)</div>
+          <div class="ch" style="flex:1"><canvas id="c3b" role="img" aria-label="Area chart: AM peak 9am 66,715 trips/hr, PM peak 19:00 64,535, weekends flatter">PM peak slightly higher than AM peak — 1.08x ratio.</canvas></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">AM peak 09:00 → <strong style="color:var(--text)">66,715/hr</strong> · PM peak 19:00 → <strong style="color:var(--text)">64,535/hr</strong><br>PM &gt; AM (1.08×) — more ride metro <em>home</em> than to work</div>
+        </div>
+        <div class="card"><div class="card-lbl">Top OD flows · 18 days total</div>
+          <div class="od"><span class="od-o">Jayadeva →</span><span class="od-d">KSR Majestic</span><div class="od-bw"><div class="od-b" style="width:100%"></div></div><span class="od-v">44,477</span></div>
+          <div class="od"><span class="od-o">Kadugodi →</span><span class="od-d">Hosahalli</span><div class="od-bw"><div class="od-b" style="width:78%"></div></div><span class="od-v">34,924</span></div>
+          <div class="od"><span class="od-o">Jayadeva →</span><span class="od-d">Indiranagar</span><div class="od-bw"><div class="od-b" style="width:65%"></div></div><span class="od-v">28,838</span></div>
+          <div class="od"><span class="od-o">Yelachenahalli →</span><span class="od-d">KSR Majestic</span><div class="od-bw"><div class="od-b" style="width:62%"></div></div><span class="od-v">27,539</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">KSR Majestic busiest · <strong style="color:var(--text)">34,781 trips/day</strong> · Weekday–Weekend gap: −29.5%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Source: BMRCL OD Matrix · 83×83 station pairs · 27,516 records · Aug 2025</span><span class="s-footer-page">03 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 04 — SIGNAL TIMING
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">Dataset 03 — BTP Official Signal Timing PDFs · OpenCity · Nov 2025</div>
+    <div class="s-title">5 of 6 junctions<br>violate <em>IRC:93.</em><br><span style="font-size:28px;font-weight:300;color:var(--muted)">IRC mandates max 180s peak cycle. Bengaluru ignores it.</span></div>
+  </div>
+  <div class="s-body">
+    <div class="g2" style="flex:1;min-height:0">
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="card-lbl">Peak cycle time vs IRC:93 max (180s) — extracted from BTP PDFs</div>
+        <div class="ch" style="flex:1"><canvas id="c4a" role="img" aria-label="Horizontal bar: signal cycles from 175s to 285s with IRC 180s green reference line">Devagowda Petrol Bunk worst at 285s (+105s over IRC max).</canvas></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card" style="flex:1">
+          <div class="card-lbl">Weekday vs Sunday — same road, same geometry</div>
+          <table class="stbl">
+            <thead><tr><th>Junction</th><th>Weekday</th><th>Sunday</th><th>Drop</th></tr></thead>
+            <tbody>
+              <tr><td>Devagowda PB, BSK</td><td style="font-family:var(--mono);color:var(--r);font-weight:700">285s ❌</td><td style="font-family:var(--mono);color:var(--g)">155s</td><td style="font-family:var(--mono);color:var(--a)">−46%</td></tr>
+              <tr><td>Silk Board HOSUR×ORR</td><td style="font-family:var(--mono);color:var(--r);font-weight:700">250s ❌</td><td style="font-family:var(--mono);color:var(--g)">173s</td><td style="font-family:var(--mono);color:var(--a)">−31%</td></tr>
+              <tr><td>Banashankari Bus Stand</td><td style="font-family:var(--mono);color:var(--r);font-weight:700">235s ❌</td><td style="font-family:var(--mono);color:var(--muted)">235s</td><td style="font-family:var(--mono);color:var(--muted)">0%</td></tr>
+              <tr><td>Sarjapur Rd Checkpost</td><td style="font-family:var(--mono);color:var(--r);font-weight:700">235s ❌</td><td style="font-family:var(--mono);color:var(--g)">185s</td><td style="font-family:var(--mono);color:var(--a)">−21%</td></tr>
+              <tr><td>Adugodi</td><td style="font-family:var(--mono);color:var(--a);font-weight:700">190s ❌</td><td style="font-family:var(--mono);color:var(--g)">145s</td><td style="font-family:var(--mono);color:var(--a)">−24%</td></tr>
+              <tr><td>Aishwarya Jn, Koramangala</td><td style="font-family:var(--mono);color:var(--g);font-weight:700">175s ✅</td><td style="font-family:var(--mono);color:var(--g)">123s</td><td style="font-family:var(--mono);color:var(--g)">−30%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="insight" style="font-size:13px">
+          <strong>Silk Board: 250s weekday → 173s Sunday.</strong> Same road. Same geometry. −31% on Sundays. This proves congestion is <strong>volume-driven, not infrastructure-constrained.</strong> No flyover changes this.
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Source: BTP official PDFs · data.opencity.in · IRC:93 peak cycle standard</span><span class="s-footer-page">04 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 05 — DELAY TABLE
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">Signal delay compounding · 3 signals/km · HCM 6th Ed · IRC:SP:41</div>
+    <div class="s-title"><em>10 seconds</em> per signal =<br>41.7 hours lost per year.</div>
+  </div>
+  <div class="s-body">
+    <div class="formula">
+      <span class="kw">annual_hrs</span> = <span class="hl">delay_per_signal</span> × <span class="num">signals_per_km</span> × <span class="num">commute_km</span> × <span class="num">2</span> × <span class="num">250</span> days ÷ <span class="num">3600</span>&nbsp;&nbsp;<span class="cmt">// round trip, working days</span><br>
+      <span class="kw">annual_cost</span> = annual_hrs × (salary ÷ <span class="num">2000</span>) + idle_fuel_hrs × <span class="num">0.605</span> L/hr × <span class="num">₹103</span>&nbsp;&nbsp;<span class="cmt">// time value + fuel</span>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Annual hours lost per commuter · 3 signals/km baseline · round trip · 250 working days</div>
+      <table class="dtbl">
+        <thead>
+          <tr><th>Delay / signal</th><th>Delay / km</th><th>5 km commute</th><th>10 km commute</th><th>15 km commute</th><th>20 km commute</th><th>Cost · 10km (₹12L IT)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>🟢 2s / signal</td><td style="color:var(--muted)">6s/km</td><td><span class="pill pg">4.2 hr/yr</span></td><td><span class="pill pg">8.3 hr/yr</span></td><td><span class="pill pg">12.5 hr/yr</span></td><td><span class="pill pa">16.7 hr/yr</span></td><td style="color:var(--muted)">₹5,519</td></tr>
+          <tr><td>🟡 5s / signal</td><td style="color:var(--muted)">15s/km</td><td><span class="pill pa">10.4 hr/yr</span></td><td><span class="pill pa">20.8 hr/yr</span></td><td><span class="pill po">31.2 hr/yr</span></td><td><span class="pill po">41.7 hr/yr</span></td><td style="color:var(--muted)">₹13,798</td></tr>
+          <tr style="background:rgba(99,102,241,.04)"><td>🟠 <strong>10s / signal</strong></td><td style="color:var(--a)">30s/km</td><td><span class="pill pa">20.8 hr/yr</span></td><td><span class="pill po"><strong>41.7 hr/yr</strong></span></td><td><span class="pill pr">62.5 hr/yr</span></td><td><span class="pill pr">83.3 hr/yr</span></td><td style="color:var(--a);font-weight:700">₹27,596</td></tr>
+          <tr><td>🔴 15s / signal</td><td style="color:var(--muted)">45s/km</td><td><span class="pill po">31.2 hr/yr</span></td><td><span class="pill pr">62.5 hr/yr</span></td><td><span class="pill pdr">93.8 hr/yr</span></td><td><span class="pill pdr">125.0 hr/yr</span></td><td style="color:var(--muted)">₹41,395</td></tr>
+          <tr><td>🔴 20s / signal</td><td style="color:var(--muted)">60s/km</td><td><span class="pill pr">41.7 hr/yr</span></td><td><span class="pill pdr">83.3 hr/yr</span></td><td><span class="pill pdr">125.0 hr/yr</span></td><td><span class="pill pdr">166.7 hr/yr</span></td><td style="color:var(--muted)">₹55,193</td></tr>
+          <tr><td>⛔ 30s / signal</td><td style="color:var(--r)">90s/km</td><td><span class="pill pr">62.5 hr/yr</span></td><td><span class="pill pdr">125.0 hr/yr</span></td><td><span class="pill pdr">187.5 hr/yr</span></td><td><span class="pill pdr" style="background:rgba(220,38,38,.25)">250 hr/yr<br><span style="font-size:9px">= 31 work days</span></span></td><td style="color:var(--r);font-weight:700">₹82,789</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="insight" style="font-size:13px">
+      Every second of signal delay is <strong>linear and compounding</strong> — it multiplies across every signal, every trip, every working day. A 10s delay at 3 signals/km over a 10km commute means <strong>5 minutes lost per trip</strong> → 41.7 hours per year → <strong>more than 5 full working days.</strong>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Model: HCM 6th Ed saturation headway 2.2s · IRC:SP:41 · ₹12L IT salary · ₹103/L petrol</span><span class="s-footer-page">05 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 06 — SILK BOARD CLIFF
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">Queue discharge analysis · Silk Board · 250s cycle · 65s green · 2.2s saturation headway</div>
+    <div class="s-title">Miss the green by<br><em>1 second</em> —<br>wait 250 more.</div>
+  </div>
+  <div class="s-body">
+    <div class="q-row" style="margin-bottom:16px">
+      <div class="q-box"><div class="q-pos">Queue #5</div><div class="q-sec">11s</div><div class="q-cyc">1 cycle</div></div>
+      <div class="q-box"><div class="q-pos">Queue #10</div><div class="q-sec">22s</div><div class="q-cyc">1 cycle</div></div>
+      <div class="q-box"><div class="q-pos">Queue #15</div><div class="q-sec">33s</div><div class="q-cyc">1 cycle</div></div>
+      <div class="q-box"><div class="q-pos">Queue #20</div><div class="q-sec">44s</div><div class="q-cyc">1 cycle</div></div>
+      <div class="q-box"><div class="q-pos">Queue #25</div><div class="q-sec">55s</div><div class="q-cyc">1 cycle</div></div>
+      <div class="q-box"><div class="q-pos">Queue #29</div><div class="q-sec">63s</div><div class="q-cyc">✅ clears</div></div>
+      <div class="q-box ov"><div class="q-pos">Queue #30</div><div class="q-sec">316s</div><div class="q-cyc">⚠ 2 cycles</div></div>
+    </div>
+    <div class="card" style="background:rgba(239,68,68,.05);border-color:rgba(239,68,68,.2)">
+      <div style="display:flex;align-items:center;gap:24px">
+        <div style="text-align:center;min-width:160px">
+          <div class="big-num" style="color:var(--r)">253s</div>
+          <div class="big-unit">difference</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:8px">between queue position<br>#29 and #30</div>
+        </div>
+        <div style="flex:1;font-size:14px;color:rgba(255,255,255,.75);line-height:1.8">
+          At Silk Board's 250s cycle with 65s green phase and 2.2s saturation headway (HCM 6th Ed):<br><br>
+          Vehicle #29 → clears in <strong style="color:var(--g)">63.8 seconds</strong> → just makes green<br>
+          Vehicle #30 → clears in <strong style="color:var(--r)">66 seconds</strong> → misses by 1 second → <strong style="color:var(--r)">waits another 250 seconds</strong><br><br>
+          This is the <strong style="color:var(--a)">cliff effect</strong> — a discontinuous jump caused entirely by cycle length. 
+          Reducing the cycle from 250s to 180s (IRC:93 compliance) would eliminate it entirely. 
+          No flyover, no grade separator, no ₹13,262 crore addresses this.
+        </div>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="card"><div class="card-lbl">Silk Board cycle: weekday vs Sunday</div>
+        <div class="ch" style="height:140px"><canvas id="c6" role="img" aria-label="Grouped bar: Silk Board signal cycles across time bands, weekday vs Sunday">Weekday 250s peak vs Sunday 173s — 31% difference on same road.</canvas></div>
+      </div>
+      <div class="insight" style="font-size:13px;display:flex;align-items:center">
+        The only fix is <strong>signal timing reform</strong> — reducing Silk Board's cycle from 250s to 180s (IRC compliance) would eliminate overflow queues and reduce per-commuter delay by ~70s per junction encounter. Cost: ₹0. BATCS (C-DAC) already deployed at 165 junctions with <strong>33% travel time reduction at Hudson Circle.</strong>
+      </div>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Source: BTP PDF · HOSUR Rd × ORR · Silk Board Jn · Madiwala PS · Fixed timing mode</span><span class="s-footer-page">06 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 07 — CITY COST
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">City-wide aggregate · 60L commuters · 10s delay/signal · 3 sig/km · 10km avg · ₹7L median</div>
+    <div class="s-title"><em>₹10,308 Crore</em><br>destroyed every year<br>in signal delay alone.</div>
+  </div>
+  <div class="s-body">
+    <div class="g3">
+      <div class="card" style="text-align:center;background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2)">
+        <div class="card-lbl">Annual person-hours lost</div>
+        <div class="big-num" style="color:var(--r);font-size:64px">25 Cr</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">60L commuters × 41.7 hrs/yr<br>= 25 crore person-hours destroyed</div>
+      </div>
+      <div class="card" style="text-align:center;background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2)">
+        <div class="card-lbl">Economic cost — all commuters</div>
+        <div class="big-num" style="color:var(--a);font-size:52px">₹10,308<br>Crore</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">60L commuters · ₹7L median salary<br>+ ₹103/L petrol idling cost</div>
+      </div>
+      <div class="card" style="text-align:center;background:rgba(99,102,241,.06);border-color:rgba(99,102,241,.2)">
+        <div class="card-lbl">IT sector alone (15L workers)</div>
+        <div class="big-num" style="color:var(--b);font-size:52px">₹4,139<br>Crore</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">₹12L avg salary · 15L IT workers<br>per year in signal delay</div>
+      </div>
+    </div>
+    <div class="card" style="flex:1;display:flex;flex-direction:column">
+      <div class="card-lbl">Comparison: B-SMILE one-time cost vs annual signal delay loss (₹ Crore)</div>
+      <div class="ch" style="flex:1"><canvas id="c7" role="img" aria-label="Bar chart: B-SMILE 13,262Cr vs annual signal delay cost 10,308Cr vs IT sector loss 4,139Cr">B-SMILE costs 1.3x one year of signal delay losses.</canvas></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div class="stat-pill"><div class="sp-val" style="font-size:22px;color:var(--a)">10 min</div><div class="sp-lbl">Daily productive time lost per commuter</div></div>
+      <div class="stat-pill"><div class="sp-val" style="font-size:22px;color:var(--r)">3,965</div><div class="sp-lbl">New vehicles/day (adding to delay)</div></div>
+      <div class="stat-pill"><div class="sp-val" style="font-size:22px;color:var(--g)">₹150Cr</div><div class="sp-lbl">BATCS budget — already approved</div></div>
+      <div class="stat-pill"><div class="sp-val" style="font-size:22px;color:var(--b)">1.3×</div><div class="sp-lbl">B-SMILE cost vs 1yr delay loss</div></div>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">Model: 60L commuters · 250 working days · 10s delay · 3 sig/km · 10km avg commute</span><span class="s-footer-page">07 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 08 — SOLUTIONS
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div class="s-header">
+    <div class="s-num">Evidence-backed interventions — what the data actually demands</div>
+    <div class="s-title">Move <em>fewer</em> vehicles<br>smarter. Not more<br>vehicles faster.</div>
+  </div>
+  <div class="s-body">
+    <div style="display:flex;gap:14px;flex:1">
+      <div class="sol" style="border-color:rgba(34,197,94,.25)">
+        <div class="sol-icon">🚦</div>
+        <div class="sol-title" style="color:var(--g)">Scale BATCS — AI signals</div>
+        <div class="sol-body">900+ junctions city-wide. Only <strong style="color:var(--text)">165</strong> run AI (C-DAC CoSiCoSt). Scaling to 500 junctions → estimated <strong style="color:var(--text)">20–30% intersection delay reduction.</strong> Hudson Circle pilot: <strong style="color:var(--text)">−33% travel time.</strong> ₹150 Cr already budgeted. Zero construction. Zero land acquisition.</div>
+        <div class="sol-tag tg">Quick win · Zero construction</div>
+      </div>
+      <div class="sol" style="border-color:rgba(245,158,11,.25)">
+        <div class="sol-icon">💰</div>
+        <div class="sol-title" style="color:var(--a)">Congestion Pricing (ERP)</div>
+        <div class="sol-body">CBD cordon pricing ₹50–150/crossing at peak hours. Singapore ERP (LTA, 1998–2005): <strong style="color:var(--text)">−44% CBD vehicle entry, −33% travel delays.</strong> Stockholm (2006): −21% traffic. Projected Bengaluru revenue: <strong style="color:var(--text)">₹400–600 Cr/yr</strong> → fund BMTC EV fleet directly.</div>
+        <div class="sol-tag ta">Demand suppression · Proven globally</div>
+      </div>
+      <div class="sol" style="border-color:rgba(99,102,241,.25)">
+        <div class="sol-icon">🚇</div>
+        <div class="sol-title" style="color:var(--b)">Close the Metro Gap</div>
+        <div class="sol-body">Weekday–weekend Metro gap: <strong style="color:var(--text)">29.5%</strong>. E-bike docking at all 83 stations converts last-mile trips. <strong style="color:var(--text)">60%+ of Bengaluru vehicle trips are under 5 km</strong> (DULT). Closing the gap adds ~38,000 daily journeys without a single new station or tunnel.</div>
+        <div class="sol-tag tb">Last-mile integration</div>
+      </div>
+      <div class="sol" style="border-color:rgba(239,68,68,.25)">
+        <div class="sol-icon">📋</div>
+        <div class="sol-title" style="color:var(--r)">Stagger + Quota</div>
+        <div class="sol-body">IT corridor time-band staggering (Whitefield, EC, Sarjapur) — Tokyo's 7-band system cut peak demand <strong style="color:var(--text)">25–30%.</strong> RTO zone vehicle quota: once zone exceeds saturation density (vehicles/road-km²), 3× registration fee. <strong style="color:var(--text)">Singapore COE model</strong> adapted for Indian context.</div>
+        <div class="sol-tag tr">Policy mandate · No infrastructure</div>
+      </div>
+    </div>
+    <div class="insight" style="font-size:14px">
+      <strong>B-SMILE spends ₹13,262 Cr to move more vehicles faster.</strong> These four interventions together cost a fraction of that — and address the demand side that flyovers never can. Silk Board's Sunday cycle is 31% shorter. The geometry isn't the problem. The volume is.
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">References: Singapore LTA (1998) · Stockholm congestion tax (2006) · BATCS BTP (2024) · DULT trip distribution</span><span class="s-footer-page">08 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SLIDE 09 — REFERENCES + CTA
+═══════════════════════════════════════════════════════ -->
+<div class="slide" style="background:var(--bg)">
+  <div style="padding:56px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--g);margin-bottom:20px">Data References · All primary sources · June 2026</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 40px">
+        <div class="ref">
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[1]</span> <span>Karnataka Transport Dept</span><br>Vehicle Registrations 2017–2026 · data.opencity.in / RTO open data · Category-wise annual cumulative fleet</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[2]</span> <span>BMRCL OD Matrix</span><br>Namma Metro Passenger Flow Aug 1–18, 2025 · 83×83 station OD pairs · Hourly resolution · 27,516 records</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[3]</span> <span>BTP Signal Timing PDFs</span><br>Official phase-by-phase cycle times · 100+ junctions · Nov 2025 · data.opencity.in/dataset/bengaluru-city-traffic-signal-data</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[4]</span> <span>IRC:93 (Indian Roads Congress)</span><br>Peak signal cycle maximum: 180 seconds · IRC:SP:41 signal design guidelines</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[5]</span> <span>HCM 6th Edition (TRB)</span><br>Saturation headway 2.2s · Startup lost time 2–3s · Queue discharge methodology</div>
+        </div>
+        <div class="ref">
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[6]</span> <span>B-SMILE Project</span><br>₹13,262 Cr cabinet-approved · 75.6 km · 9 EPC + 2 BOT tenders floated May 2026 · Source: Deccan Herald / BBMP Engineering</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[7]</span> <span>TomTom Traffic Index 2024</span><br>Bengaluru 3rd slowest city globally · Avg speed 18 km/hr · Time per 10 km: 34 min 10 sec</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[8]</span> <span>Singapore LTA — ERP Study</span><br>Electronic Road Pricing 1998–2005 · −44% CBD vehicle entry · −33% travel delay reduction</div>
+          <div style="margin-bottom:8px"><span style="color:var(--g);font-weight:700">[9]</span> <span>BATCS / C-DAC</span><br>Bengaluru Adaptive Traffic Control System · CoSiCoSt algorithm · 165 junctions live (2025) · 33% delay reduction at Hudson Circle · BTP Joint Commissioner (Oct 2024)</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--rule);border-radius:12px;padding:28px 32px">
+      <div style="font-size:22px;font-weight:700;color:#fff;margin-bottom:16px">The datasets don't argue. They calculate.</div>
+      <div style="display:flex;justify-content:space-between;align-items:end">
+        <div>
+          <div style="font-size:13px;color:var(--muted);line-height:2">
+            💬 Which number surprised you most? Drop it below.<br>
+            🔁 Tag a transport planner, urban engineer, or policy maker.<br>
+            📌 Full interactive calculator linked in comments.
+          </div>
+          <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:6px">
+            <span class="tag tg">#Bengaluru</span><span class="tag tg">#TrafficEngineering</span><span class="tag tb">#NammaMetro</span><span class="tag tb">#BSMILE</span>
+            <span class="tag ta">#OpenData</span><span class="tag ta">#DataDriven</span><span class="tag tr">#InducedDemand</span><span class="tag tr">#IRC</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:14px;font-weight:600;color:#fff">Dr. Bharath A.L.</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Lead Hydro-Meteorological Engineer<br>Urban Infrastructure · Bengaluru</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="s-footer"><span class="s-footer-brand">All data from official public sources · Analysis: June 2026</span><span class="s-footer-page">09 / 09</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     CHARTS JS
+═══════════════════════════════════════════════════════ -->
+<script>
+const gc='rgba(255,255,255,0.05)',tc='#6B7A72';
+const def={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}};
+
+// SLIDE 2A — vehicle growth
+new Chart(document.getElementById('c2a'),{type:'line',data:{labels:['17','18','19','20','21','22','23','24','25','26'],datasets:[
+  {data:[2.13,2.28,2.45,2.61,2.73,2.84,2.98,3.16,3.35,3.49],borderColor:'#6366F1',backgroundColor:'rgba(99,102,241,0.08)',borderWidth:2.5,pointRadius:4,fill:true,tension:.35,yAxisID:'y'},
+  {data:[1.49,1.61,1.73,1.85,1.94,2.02,2.11,2.24,2.37,2.49],borderColor:'#EF4444',backgroundColor:'transparent',borderWidth:2,pointRadius:3,borderDash:[6,3],tension:.35,yAxisID:'y'},
+  {data:[0.318,0.338,0.358,0.376,0.394,0.414,0.438,0.465,0.492,0.495],borderColor:'#22C55E',backgroundColor:'transparent',borderWidth:2,pointRadius:3,borderDash:[3,3],tension:.35,yAxisID:'y2'}
+]},options:{...def,scales:{
+  x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},
+  y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v.toFixed(1)+'Cr'},title:{display:true,text:'Crore',color:tc,font:{size:11}}},
+  y2:{position:'right',grid:{display:false},ticks:{color:'#22C55E44',font:{size:10},callback:v=>v.toFixed(2)+'Cr'}}
+},plugins:{...def.plugins,tooltip:{mode:'index',intersect:false}}}});
+
+// SLIDE 2B — YoY growth rate
+new Chart(document.getElementById('c2b'),{type:'bar',data:{labels:['18','19','20','21','22','23','24','25','26'],datasets:[{
+  data:[7.38,7.45,6.42,4.43,4.22,4.94,6.06,5.80,4.32],
+  backgroundColor:['#6366F1','#6366F1','#EF4444','#EF4444','#EF4444','#F59E0B','#F59E0B','#F59E0B','#22C55E'],
+  borderWidth:0,borderRadius:3
+}]},options:{...def,scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:10},callback:v=>v+'%'},title:{display:true,text:'YoY %',color:tc,font:{size:10}}}},
+plugins:{...def.plugins,tooltip:{callbacks:{label:c=>`+${c.raw}% YoY`}}}}});
+
+// SLIDE 3A — metro daily
+const dayTypes=['Fri','Sat','Sun','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Mon','Tue','Wed','Thu','Fri','Sat','Sun','Mon'];
+const dv=[6.69,6.27,4.96,7.08,6.87,7.32,7.13,5.44,5.64,4.79,7.94,7.77,7.98,8.40,6.53,6.55,5.38,7.87];
+const bc=dv.map((_,i)=>dayTypes[i]==='Sun'?'#333':dayTypes[i]==='Sat'?'rgba(34,197,94,0.65)':'rgba(99,102,241,0.75)');
+new Chart(document.getElementById('c3a'),{type:'bar',data:{labels:['1F','2Sa','3Su','4M','5T','6W','7Th','8F','9Sa','10Su','11M','12T','13W','14Th⭐','15F','16Sa','17Su','18M'],datasets:[{data:dv,backgroundColor:bc,borderWidth:0,borderRadius:3}]},
+options:{...def,scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:9}}},y:{min:3,grid:{color:gc},ticks:{color:tc,font:{size:10},callback:v=>v+'L'}}},
+plugins:{...def.plugins,tooltip:{callbacks:{label:c=>`${c.raw.toFixed(2)}L passengers`}}}}});
+
+// SLIDE 3B — hourly
+new Chart(document.getElementById('c3b'),{type:'line',data:{labels:['5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22'],datasets:[
+  {label:'Weekday',data:[0.12,0.30,0.70,1.41,1.67,1.48,0.93,0.79,0.77,0.80,0.77,0.95,1.25,1.58,1.61,1.13,0.71,0.43],borderColor:'#6366F1',backgroundColor:'rgba(99,102,241,0.08)',borderWidth:2.5,pointRadius:3,fill:true,tension:.4},
+  {label:'Weekend',data:[0.09,0.22,0.51,0.95,1.02,1.12,0.93,0.82,0.79,0.82,0.86,1.09,1.35,1.45,1.38,1.10,0.74,0.43],borderColor:'#F59E0B',backgroundColor:'rgba(245,158,11,0.05)',borderWidth:2,pointRadius:2,fill:true,tension:.4,borderDash:[5,3]}
+]},options:{...def,scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:10},callback:v=>v.toFixed(1)+'K'}}},
+plugins:{...def.plugins,tooltip:{mode:'index',intersect:false}}}});
+
+// SLIDE 4A — signal bars
+new Chart(document.getElementById('c4a'),{type:'bar',data:{
+  labels:['Aishwarya Jn','Adugodi','Sarjapur Checkpost','Banashankari BS','Silk Board','Devagowda PB'],
+  datasets:[{data:[175,190,235,235,250,285],backgroundColor:['rgba(34,197,94,.7)','rgba(245,158,11,.5)','rgba(239,68,68,.5)','rgba(239,68,68,.55)','rgba(239,68,68,.7)','rgba(239,68,68,.9)'],borderWidth:0,borderRadius:4}]
+},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw}s (IRC max 180s, excess: +${Math.max(0,c.raw-180)}s)`}}},scales:{
+  x:{min:0,max:310,grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'s'}},
+  y:{grid:{display:false},ticks:{color:tc,font:{size:11}}}
+}},plugins:[{afterDraw(ch){const{ctx,scales:{x,y}}=ch;const xp=x.getPixelForValue(180);ctx.save();ctx.setLineDash([5,3]);ctx.beginPath();ctx.moveTo(xp,y.top);ctx.lineTo(xp,y.bottom);ctx.strokeStyle='#22C55E';ctx.lineWidth=2;ctx.stroke();ctx.font='600 11px Inter';ctx.fillStyle='#22C55E';ctx.fillText('IRC max 180s',xp+5,y.top+15);ctx.restore();}}]});
+
+// SLIDE 6 — silk board time bands
+new Chart(document.getElementById('c6'),{type:'bar',data:{labels:['07–08','08–12','12–16','16–22','22–23'],datasets:[
+  {label:'Weekday',data:[230,250,230,230,200],backgroundColor:'rgba(239,68,68,0.65)',borderWidth:0,borderRadius:3},
+  {label:'Sunday',data:[153,173,153,158,118],backgroundColor:'rgba(34,197,94,0.55)',borderWidth:0,borderRadius:3}
+]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:tc,font:{size:10},boxWidth:10}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw}s`}}},scales:{x:{grid:{display:false},ticks:{color:tc,font:{size:10}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:10},callback:v=>v+'s'},title:{display:true,text:'Cycle time (s)',color:tc,font:{size:10}}}},
+},plugins:[{afterDraw(ch){const{ctx,scales:{x,y}}=ch;const yp=y.getPixelForValue(180);ctx.save();ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(x.left,yp);ctx.lineTo(x.right,yp);ctx.strokeStyle='#22C55E';ctx.lineWidth=1.5;ctx.stroke();ctx.font='500 10px Inter';ctx.fillStyle='#22C55E';ctx.fillText('IRC 180s',x.left+4,yp-4);ctx.restore();}}]});
+
+// SLIDE 7 — aggregate comparison
+new Chart(document.getElementById('c7'),{type:'bar',data:{labels:['B-SMILE flyovers\n(one-time spend)','Annual signal delay cost\n(60L commuters, ₹7L median)','IT sector loss alone\n(15L workers, ₹12L)'],datasets:[{data:[13262,10308,4139],backgroundColor:['rgba(99,102,241,0.6)','rgba(239,68,68,0.6)','rgba(245,158,11,0.6)'],borderWidth:0,borderRadius:4}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`₹${c.raw.toLocaleString('en-IN')} Crore`}}},scales:{
+  x:{grid:{display:false},ticks:{color:tc,font:{size:11},maxRotation:0}},
+  y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>'₹'+v+'Cr'},title:{display:true,text:'₹ Crore',color:tc,font:{size:11}}}
+}}});
+
+// ── NAV + B&W TOGGLE ─────────────────────────────────────
+function show(n){
+  document.querySelectorAll('.slide').forEach((s,i)=>{s.classList.toggle('active',i===n)});
+  document.querySelectorAll('.nav button:not(#bwBtn)').forEach((b,i)=>{b.classList.toggle('active',i===n)});
+}
+
+let bwOn = false;
+function toggleBW(){
+  bwOn = !bwOn;
+  document.body.classList.toggle('bw', bwOn);
+  const btn = document.getElementById('bwBtn');
+  btn.textContent = bwOn ? '🌈 Colour' : '⬛ B&W';
+  btn.style.background = bwOn ? 'rgba(0,0,0,0.8)' : '';
+  btn.style.color       = bwOn ? '#fff' : '';
+}
+</script>
+</body>
+</html>
