@@ -1,7 +1,7 @@
 # Bengaluru Traffic Analysis
 ### Data-driven analysis of Bengaluru's urban mobility crisis
 
-**Dr. Bharath A.L.** · Lead Hydro-Meteorological Engineer · Urban Infrastructure
+**Dr. Bharath A.L.** · Senior Hydrologist · Canarys Automations Limited · Bengaluru
 
 🔗 **Live site:** `https://bharathal.github.io/bengaluru-traffic-analysis`
 
